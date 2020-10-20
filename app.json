@@ -1,0 +1,12 @@
+{
+  "name": "thomas-list",
+  "displayName": "thomas-list",
+  "expo": {
+    "name": "thomas-list",
+    "slug": "thomas-list",
+    "version": "1.0.0",
+    "assetBundlePatterns": [
+      "**/*"
+    ]
+  }
+}
