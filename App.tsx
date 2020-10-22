@@ -3,17 +3,22 @@ import {
   StyleSheet,
   Text,
   View,
-  Button,
   FlatList,
   SafeAreaView,
   Pressable,
+  Button,
+  TextInput,
+  ScrollView,
 } from 'react-native';
+import 'react-native-get-random-values';
 import * as Contacts from 'expo-contacts';
 import { NavigationContainer, RouteProp } from '@react-navigation/native';
 import {
   createStackNavigator,
   StackNavigationProp,
 } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-community/async-storage';
+import { nanoid } from 'nanoid';
 
 interface Contact {
   id: string;
@@ -23,26 +28,38 @@ interface Contact {
 
 type RootStackParamList = {
   Home: { selectedContact?: Contact };
-  ContactList: { contacts: Contact[] };
+  AddContact: undefined;
 };
 
-const Stack = createStackNavigator<RootStackParamList>();
+const RootStack = createStackNavigator<RootStackParamList>();
 
 function Routes() {
   return (
-    <Stack.Navigator>
-      <Stack.Screen name="Home" component={HomeScreen} />
-      <Stack.Screen name="ContactList" component={ContactList} />
-    </Stack.Navigator>
+    <RootStack.Navigator mode="modal">
+      <RootStack.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ headerShown: false }}
+      />
+      <RootStack.Screen
+        name="AddContact"
+        component={AddContact}
+        options={{ headerShown: false }}
+      />
+    </RootStack.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginLeft: 10,
+    marginRight: 10,
+  },
+  homeContainer: {
+    flex: 1,
+    marginLeft: 10,
+    marginRight: 10,
   },
   item: {
     backgroundColor: '#f9c2ff',
@@ -63,26 +80,133 @@ interface HomeScreenProps {
   navigation: HomeScreenNavigationProp;
 }
 
-function HomeScreen({ route, navigation }: HomeScreenProps) {
-  const { selectedContact } = route.params;
+interface ContactWithNote {
+  id: string;
+  contact: Contact;
+  note: string;
+}
 
-  const loadContacts = React.useCallback(async () => {
-    const contacts = await Contacts.getContactsAsync({
-      fields: [Contacts.Fields.ID, Contacts.Fields.Name, Contacts.Fields.Image],
+async function loadContacts(): Promise<ContactWithNote[]> {
+  const value = await AsyncStorage.getItem('contacts');
+  return value ? JSON.parse(value) : [];
+}
+
+async function saveContacts(contacts: ContactWithNote[]): Promise<void> {
+  const value = JSON.stringify(contacts);
+  await AsyncStorage.setItem('contacts', value);
+}
+
+function HomeScreen({ route, navigation }: HomeScreenProps) {
+  const { selectedContact } = route.params ?? {};
+
+  const [loading, setLoading] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [contacts, setContacts] = React.useState<ContactWithNote[]>([]);
+  const [contact, setContact] = React.useState<Contact | undefined>();
+  const [note, setNote] = React.useState<string | undefined>();
+
+  // load contacts from storage to memory
+  React.useEffect(() => {
+    setLoading(true);
+    loadContacts()
+      .then((loadedContacts) => {
+        setContacts(loadedContacts);
+      })
+      .catch((err) => {
+        console.error('>> failed to load contacts');
+        console.error(err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  // save contacts to storage from memory, for every change to contacts
+  React.useEffect(() => {
+    setSaving(true);
+    saveContacts(contacts)
+      .catch((err) => {
+        console.error('>> failed to save contacts');
+        console.error(err);
+      })
+      .finally(() => {
+        setSaving(false);
+      });
+  }, [contacts]);
+
+  React.useEffect(() => {
+    setContact(selectedContact);
+  }, [selectedContact]);
+
+  const cancelEdit = React.useCallback(() => {
+    setContact(undefined);
+    setNote(undefined);
+  }, []);
+
+  const saveEdit = React.useCallback(() => {
+    if (!contact) {
+      return;
+    }
+
+    setContacts((prev) => {
+      return [{ id: nanoid(6), contact, note: note || '' }, ...prev];
     });
-    navigation.push('ContactList', { contacts: contacts.data as Contact[] });
-  }, [navigation]);
+    setContact(undefined);
+    setNote(undefined);
+  }, [setContacts, contact, note]);
 
   return (
-    <View style={styles.container}>
-      {selectedContact && (
-        <>
-          <Text>has selected contact:</Text>
-          <Text>{selectedContact.name}</Text>
-        </>
-      )}
-      <Button onPress={loadContacts} title="Load Contacts" />
-    </View>
+    <SafeAreaView style={styles.homeContainer}>
+      <View style={{ alignItems: 'center', marginBottom: 15 }}>
+        <Text style={{ fontSize: 32 }}>Notizen</Text>
+      </View>
+      <ScrollView keyboardShouldPersistTaps="handled">
+        {contact && (
+          <View key={contact.id}>
+            <Text>{contact.name}</Text>
+            <TextInput
+              style={{
+                borderBottomWidth: 1,
+                paddingBottom: 5,
+                borderColor: '#ACACAC',
+                marginTop: 5,
+                marginBottom: 2,
+              }}
+              onChangeText={(text) => setNote(text)}
+              multiline
+              placeholder="gib hier deine Notiz ein"
+              value={note}
+            />
+            <View style={{ flex: 1, flexDirection: 'row-reverse' }}>
+              <Button title="Abbrechen" onPress={cancelEdit} />
+              <Button title="Speichern" onPress={saveEdit} />
+            </View>
+          </View>
+        )}
+        {contacts.map(({ id, contact, note }) => (
+          <View key={id}>
+            <Text>{contact.name}</Text>
+            <Text
+              style={{
+                borderBottomWidth: 1,
+                paddingBottom: 5,
+                borderColor: '#ACACAC',
+                marginTop: 5,
+                marginBottom: 5,
+              }}
+            >
+              {note}
+            </Text>
+          </View>
+        ))}
+      </ScrollView>
+      <View style={{ height: 50, alignItems: 'center' }}>
+        <Button
+          title="Notiz hinzufügen"
+          onPress={() => navigation.navigate('AddContact')}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -99,19 +223,34 @@ const Contact = ({ contact, onSelect }: ContactProps) => (
   </View>
 );
 
-type ContactListRouteProp = RouteProp<RootStackParamList, 'ContactList'>;
-type ContactListNavigationProp = StackNavigationProp<
+type AddContactRouteProp = RouteProp<RootStackParamList, 'AddContact'>;
+type AddContactNavigationProp = StackNavigationProp<
   RootStackParamList,
-  'ContactList'
+  'AddContact'
 >;
 
-interface ContactListProps {
-  route: ContactListRouteProp;
-  navigation: ContactListNavigationProp;
+interface AddContactProps {
+  route: AddContactRouteProp;
+  navigation: AddContactNavigationProp;
 }
 
-function ContactList({ navigation, route }: ContactListProps) {
-  const { contacts } = route.params;
+function AddContact({ navigation }: AddContactProps) {
+  const [contacts, setContacts] = React.useState<Contact[]>([]);
+
+  React.useEffect(() => {
+    (async () => {
+      // load contacts on first render
+      const phoneContacts = await Contacts.getContactsAsync({
+        fields: [
+          Contacts.Fields.ID,
+          Contacts.Fields.Name,
+          Contacts.Fields.Image,
+        ],
+      });
+
+      setContacts(phoneContacts.data as Contact[]);
+    })();
+  }, []);
 
   const selectContact = React.useCallback(
     (contact) => {
@@ -122,6 +261,8 @@ function ContactList({ navigation, route }: ContactListProps) {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Button onPress={() => navigation.goBack()} title="Dismiss" />
+
       <Text>Select a contact</Text>
       <FlatList
         data={contacts}
