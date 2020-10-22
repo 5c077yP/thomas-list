@@ -155,6 +155,17 @@ function HomeScreen({ route, navigation }: HomeScreenProps) {
     setNote(undefined);
   }, [setContacts, contact, note]);
 
+  const deleteContactNote = React.useCallback((id) => {
+    setContacts((prev) => {
+      const idx = prev.findIndex((c) => c.id === id);
+      if (idx === -1) {
+        return prev;
+      }
+
+      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+    });
+  }, []);
+
   return (
     <SafeAreaView style={styles.homeContainer}>
       <View style={{ alignItems: 'center', marginBottom: 15 }}>
@@ -184,19 +195,25 @@ function HomeScreen({ route, navigation }: HomeScreenProps) {
           </View>
         )}
         {contacts.map(({ id, contact, note }) => (
-          <View key={id}>
-            <Text>{contact.name}</Text>
-            <Text
-              style={{
-                borderBottomWidth: 1,
-                paddingBottom: 5,
-                borderColor: '#ACACAC',
-                marginTop: 5,
-                marginBottom: 5,
-              }}
-            >
-              {note}
-            </Text>
+          <View key={id} style={{ flexDirection: 'row', marginTop: 15 }}>
+            <View style={{ flex: 1 }}>
+              <Text>{contact.name}</Text>
+              <Text
+                style={{
+                  borderBottomWidth: 1,
+                  paddingBottom: 5,
+                  borderColor: '#ACACAC',
+                  marginTop: 5,
+                }}
+              >
+                {note}
+              </Text>
+            </View>
+            <Button
+              title="löschen"
+              onPress={() => deleteContactNote(id)}
+              disabled={loading || saving}
+            />
           </View>
         ))}
       </ScrollView>
