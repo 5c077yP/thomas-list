@@ -1,3 +1,4 @@
+/* eslint react-native/no-inline-styles: "off" */
 import React from 'react';
 import {
   StyleSheet,
@@ -9,6 +10,7 @@ import {
   Button,
   TextInput,
   ScrollView,
+  ViewStyle,
 } from 'react-native';
 import 'react-native-get-random-values';
 import * as Contacts from 'expo-contacts';
@@ -43,34 +45,134 @@ function Routes() {
       />
       <RootStack.Screen
         name="AddContact"
-        component={AddContact}
+        component={AddContactScreen}
         options={{ headerShown: false }}
       />
     </RootStack.Navigator>
   );
 }
 
-const styles = StyleSheet.create({
+/******************************
+ *
+ * ====  Center Container  ====
+ *
+ ******************************/
+
+interface CenterContainerProps {
+  children: React.ReactNode;
+  style?: ViewStyle;
+}
+
+const centerContainerStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+  },
+});
+
+function CenterContainer({ children, style }: CenterContainerProps) {
+  return (
+    <View style={{ ...centerContainerStyles.container, ...style }}>
+      {children}
+    </View>
+  );
+}
+
+/******************************
+ *
+ * ====       Title        ====
+ *
+ ******************************/
+
+const titleStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+  },
+  text: {
+    fontSize: 32,
+    marginBottom: 15,
+  },
+});
+
+function Title({ text = '' }) {
+  return <Text style={titleStyles.text}>{text}</Text>;
+}
+
+/******************************
+ *
+ * ====   Safe Container   ====
+ *
+ ******************************/
+
+const safeContainerStyles = StyleSheet.create({
   container: {
     flex: 1,
     marginLeft: 10,
     marginRight: 10,
   },
-  homeContainer: {
-    flex: 1,
-    marginLeft: 10,
-    marginRight: 10,
+});
+
+function SafeContainer({ children }: { children: React.ReactNode }) {
+  return (
+    <SafeAreaView style={safeContainerStyles.container}>
+      {children}
+    </SafeAreaView>
+  );
+}
+
+/******************************
+ *
+ * ====  Add Contact Form  ====
+ *
+ ******************************/
+
+interface AddContactFormProps {
+  contact: Contact;
+  onSave: (result: { contact: Contact; note: string }) => void;
+  onCancel: () => void;
+}
+
+const addContactFormStyles = StyleSheet.create({
+  textInput: {
+    borderBottomWidth: 1,
+    paddingBottom: 5,
+    borderColor: '#ACACAC',
+    marginTop: 5,
+    marginBottom: 2,
   },
-  item: {
-    backgroundColor: '#f9c2ff',
-    padding: 20,
-    marginVertical: 8,
-    marginHorizontal: 16,
-  },
-  title: {
-    fontSize: 32,
+  actionsContainer: {
+    flexDirection: 'row-reverse',
   },
 });
+
+function AddContactForm({ contact, onSave, onCancel }: AddContactFormProps) {
+  const [note, setNote] = React.useState<string | undefined>();
+  const handleSave = React.useCallback(() => {
+    onSave({ contact, note: note ?? '' });
+  }, [contact, note, onSave]);
+
+  return (
+    <View key={contact.id}>
+      <Text>{contact.name}</Text>
+      <TextInput
+        style={addContactFormStyles.textInput}
+        onChangeText={(text) => setNote(text)}
+        multiline
+        placeholder="gib hier deine Notiz ein"
+        value={note}
+      />
+      <View style={addContactFormStyles.actionsContainer}>
+        <Button title="Abbrechen" onPress={onCancel} />
+        <Button title="Speichern" onPress={handleSave} />
+      </View>
+    </View>
+  );
+}
+
+/******************************
+ *
+ * ====    Home Screen     ====
+ *
+ ******************************/
 
 type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
@@ -102,8 +204,9 @@ function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [contacts, setContacts] = React.useState<ContactWithNote[]>([]);
-  const [contact, setContact] = React.useState<Contact | undefined>();
-  const [note, setNote] = React.useState<string | undefined>();
+  const [showAddContactForm, setShowAddContactForm] = React.useState<boolean>(
+    false,
+  );
 
   // load contacts from storage to memory
   React.useEffect(() => {
@@ -135,25 +238,21 @@ function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, [contacts]);
 
   React.useEffect(() => {
-    setContact(selectedContact);
+    if (selectedContact) {
+      setShowAddContactForm(true);
+    }
   }, [selectedContact]);
 
   const cancelEdit = React.useCallback(() => {
-    setContact(undefined);
-    setNote(undefined);
+    setShowAddContactForm(false);
   }, []);
 
-  const saveEdit = React.useCallback(() => {
-    if (!contact) {
-      return;
-    }
-
+  const saveEdit = React.useCallback(({ contact, note }) => {
     setContacts((prev) => {
-      return [{ id: nanoid(6), contact, note: note || '' }, ...prev];
+      return [{ id: nanoid(6), contact, note }, ...prev];
     });
-    setContact(undefined);
-    setNote(undefined);
-  }, [setContacts, contact, note]);
+    setShowAddContactForm(false);
+  }, []);
 
   const deleteContactNote = React.useCallback((id) => {
     setContacts((prev) => {
@@ -167,33 +266,20 @@ function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, []);
 
   return (
-    <SafeAreaView style={styles.homeContainer}>
-      <View style={{ alignItems: 'center', marginBottom: 15 }}>
-        <Text style={{ fontSize: 32 }}>Notizen</Text>
-      </View>
-      <ScrollView keyboardShouldPersistTaps="handled">
-        {contact && (
-          <View key={contact.id}>
-            <Text>{contact.name}</Text>
-            <TextInput
-              style={{
-                borderBottomWidth: 1,
-                paddingBottom: 5,
-                borderColor: '#ACACAC',
-                marginTop: 5,
-                marginBottom: 2,
-              }}
-              onChangeText={(text) => setNote(text)}
-              multiline
-              placeholder="gib hier deine Notiz ein"
-              value={note}
-            />
-            <View style={{ flex: 1, flexDirection: 'row-reverse' }}>
-              <Button title="Abbrechen" onPress={cancelEdit} />
-              <Button title="Speichern" onPress={saveEdit} />
-            </View>
-          </View>
-        )}
+    <SafeContainer>
+      <CenterContainer>
+        <Title text="Notizen" />
+      </CenterContainer>
+
+      {showAddContactForm && (
+        <AddContactForm
+          contact={selectedContact as Contact}
+          onCancel={cancelEdit}
+          onSave={saveEdit}
+        />
+      )}
+
+      <ScrollView keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
         {contacts.map(({ id, contact, note }) => (
           <View key={id} style={{ flexDirection: 'row', marginTop: 15 }}>
             <View style={{ flex: 1 }}>
@@ -217,28 +303,63 @@ function HomeScreen({ route, navigation }: HomeScreenProps) {
           </View>
         ))}
       </ScrollView>
-      <View style={{ height: 50, alignItems: 'center' }}>
+
+      {!contacts.length && !showAddContactForm && (
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{ fontSize: 22, fontWeight: '300', color: '#495057' }}>
+            Noch keine Notizen vorhanden
+          </Text>
+        </View>
+      )}
+      <CenterContainer>
         <Button
           title="Notiz hinzufügen"
           onPress={() => navigation.navigate('AddContact')}
         />
-      </View>
-    </SafeAreaView>
+      </CenterContainer>
+    </SafeContainer>
   );
 }
 
-interface ContactProps {
+/******************************
+ *
+ * ==== Contact List Item ====
+ *
+ ******************************/
+
+interface ContactListItemProps {
   contact: Contact;
   onSelect: (contact: Contact) => void;
 }
 
-const Contact = ({ contact, onSelect }: ContactProps) => (
-  <View style={styles.item}>
-    <Pressable onPress={() => onSelect(contact)}>
-      <Text style={styles.title}>{contact.name}</Text>
-    </Pressable>
-  </View>
-);
+const contactListItemStyles = StyleSheet.create({
+  container: {
+    backgroundColor: 'white',
+    borderBottomColor: '#ddddde',
+    borderBottomWidth: 1,
+    padding: 20,
+    marginHorizontal: 16,
+  },
+  text: {
+    fontSize: 22,
+  },
+});
+
+function ContactListItem({ contact, onSelect }: ContactListItemProps) {
+  return (
+    <View style={contactListItemStyles.container}>
+      <Pressable onPress={() => onSelect(contact)}>
+        <Text style={contactListItemStyles.text}>{contact.name}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/******************************
+ *
+ * ==== Add Contact Screen ====
+ *
+ ******************************/
 
 type AddContactRouteProp = RouteProp<RootStackParamList, 'AddContact'>;
 type AddContactNavigationProp = StackNavigationProp<
@@ -251,7 +372,7 @@ interface AddContactProps {
   navigation: AddContactNavigationProp;
 }
 
-function AddContact({ navigation }: AddContactProps) {
+function AddContactScreen({ navigation }: AddContactProps) {
   const [contacts, setContacts] = React.useState<Contact[]>([]);
 
   React.useEffect(() => {
@@ -263,6 +384,7 @@ function AddContact({ navigation }: AddContactProps) {
           Contacts.Fields.Name,
           Contacts.Fields.Image,
         ],
+        sort: Contacts.SortTypes.UserDefault,
       });
 
       setContacts(phoneContacts.data as Contact[]);
@@ -277,18 +399,23 @@ function AddContact({ navigation }: AddContactProps) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Button onPress={() => navigation.goBack()} title="Dismiss" />
+    <SafeContainer>
+      <View style={{ flexDirection: 'row-reverse' }}>
+        <Button onPress={() => navigation.goBack()} title="Schließen" />
+      </View>
 
-      <Text>Select a contact</Text>
+      <CenterContainer>
+        <Title text="Kontakt auswählen" />
+      </CenterContainer>
+
       <FlatList
         data={contacts}
         renderItem={({ item }) => (
-          <Contact contact={item} onSelect={selectContact} />
+          <ContactListItem contact={item} onSelect={selectContact} />
         )}
         keyExtractor={(item) => item.id}
       />
-    </SafeAreaView>
+    </SafeContainer>
   );
 }
 
