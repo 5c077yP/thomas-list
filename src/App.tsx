@@ -1,6 +1,6 @@
-/* eslint react-native/no-inline-styles: "off" */
 import React from 'react';
 import {
+  /* eslint react-native/no-inline-styles: "off" */
   StyleSheet,
   Text,
   View,
@@ -21,6 +21,7 @@ import {
 } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-community/async-storage';
 import { nanoid } from 'nanoid';
+import Fuse from 'fuse.js';
 
 interface Contact {
   id: string;
@@ -374,6 +375,7 @@ interface AddContactProps {
 
 function AddContactScreen({ navigation }: AddContactProps) {
   const [contacts, setContacts] = React.useState<Contact[]>([]);
+  const [searchTerm, setSearchTerm] = React.useState('');
 
   React.useEffect(() => {
     (async () => {
@@ -398,6 +400,11 @@ function AddContactScreen({ navigation }: AddContactProps) {
     [navigation],
   );
 
+  const contactsToShow = React.useMemo(() => {
+    const fuse = new Fuse(contacts, { keys: ['name'] });
+    return searchTerm ? fuse.search(searchTerm).map((c) => c.item) : contacts;
+  }, [contacts, searchTerm]);
+
   return (
     <SafeContainer>
       <View style={{ flexDirection: 'row-reverse' }}>
@@ -408,8 +415,34 @@ function AddContactScreen({ navigation }: AddContactProps) {
         <Title text="Kontakt auswählen" />
       </CenterContainer>
 
+      {/* Search Bar */}
+      <View
+        style={{
+          marginBottom: 12,
+          paddingHorizontal: 10,
+          flexDirection: 'row',
+        }}
+      >
+        <TextInput
+          style={{
+            paddingHorizontal: 8,
+            paddingVertical: 6,
+            fontSize: 22,
+            borderColor: '#ddddde',
+            borderRadius: 6,
+            borderWidth: 1,
+            backgroundColor: 'white',
+            flex: 1,
+          }}
+          placeholder="Kontakt suchen"
+          onChangeText={(text) => setSearchTerm(text)}
+          value={searchTerm}
+        />
+        <Button title="Abbrechen" onPress={() => setSearchTerm('')} />
+      </View>
+
       <FlatList
-        data={contacts}
+        data={contactsToShow}
         renderItem={({ item }) => (
           <ContactListItem contact={item} onSelect={selectContact} />
         )}
